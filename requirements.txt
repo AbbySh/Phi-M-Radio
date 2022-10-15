@@ -1,0 +1,7 @@
+######
+matplotlib
+numpy
+scipy
+astropy==5.1
+lightkurve
+configparser
