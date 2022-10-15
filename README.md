@@ -1,5 +1,5 @@
 # StellarRadio
-Tuning a Stellar Radio - Updated Code October 11 2021
+Tuning a Stellar Radio - Updated Code October 2022
 
 Steps for running StellarRadioAlgorithm.py: <br />
     1. Open terminal <br />
