@@ -17,7 +17,6 @@ class StellarRadioAlg:
         self.instrument = str(parser.get('STARQUALS','instrument'))
         self.id = int(parser.get('STARQUALS','id'))
         self.cadence = str(parser.get('STARQUALS','cadence'))
-        self.bandwidth = float(parser.get('MATH','bandwidth'))
         self.amp0 = float(parser.get('MATH','amp0'))
         self.phase0 = float(parser.get('MATH','phase0'))
         self.iters = int(parser.get('MATH','iters'))
@@ -59,10 +58,9 @@ class StellarRadioAlg:
         new_q = []
         q_idx = []
         for i,que in enumerate(q):
-            if que < 48:
-                if que > 20:
-                    new_q.append(que)
-                    q_idx.append(i)
+            if que > 0:
+                new_q.append(que)
+                q_idx.append(i)
         # print(q_idx,new_q)
         firsthalf_max = list(y).index(max(y[q_idx[0]:-1]))
         #firsthalf_max = list(y).index(max(y[1000:int(len(y)/2)])) #this needs to be altered
@@ -146,42 +144,6 @@ class StellarRadioAlg:
         flux=flux-1.
 
         return time,flux,flerr,quarter
-
-    def bandpass_filter(self,flux,time,quarters,f0):
-        """Performs bandpass filter on flux data.
-
-        Args:
-            flux (np.ndarray): Flux data.
-            time (np.ndarray): Time data.
-            quarters (np.ndarray): Quarter data. ?? Bad description
-            f0 (float): Non-optimized frequency guess.
-
-        Returns:
-            np.ndarray: Bandpass-filtered flux data.
-
-        Bugs:
-            pesky factors of 2 floating around which are no bueno
-            time difference is not correct in fftfreq_time line
-        """
-        q_sort = np.unique(np.sort(quarters))
-        for quarter in q_sort:
-            I = quarters == quarter
-            
-            _flux = flux[I]
-            this_time = time[I]
-            fft_flux = fft(_flux)
-            fftfreq_time = fftfreq(len(_flux)) / np.nanmedian(this_time[1:] - this_time[:-1])
-            _filter = np.abs(np.abs(fftfreq_time) - f0) > 3 * self.bandwidth
-            print('bandpass_filter:',min(fftfreq_time),max(fftfreq_time),f0,min(_filter),max(_filter))
-            fft_flux[_filter] = 0.
-            
-            this_flux = ifft(fft_flux).real
-            flux[I] = this_flux
-            plt.figure()
-            plt.plot(flux)
-            plt.savefig('./fft_plot_{}_{}_{}'.format(quarter,self.instrument,self.id))
-            plt.close()
-        return flux
 
     def mix(self,time,flux,f0):
         """Mix flux. ? Bad description
@@ -331,10 +293,7 @@ class StellarRadioAlg:
 
         f0 = self.freq_finder()
 
-        # new_flux = self.bandpass_filter(flux,time,quarter,f0)
-        new_flux = flux
-
-        remf, immf, sremf, simmf, oput = self.optimization(time,new_flux,f0)
+        remf, immf, sremf, simmf, oput = self.optimization(time,flux,f0)
 
         plt.figure()
         plt.title('lombscargle periodogram of {}'.format(self.id))
