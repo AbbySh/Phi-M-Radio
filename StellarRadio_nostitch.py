@@ -8,6 +8,7 @@ from scipy.fftpack import fft,ifft,fftfreq
 from scipy.stats import binned_statistic as bs
 import lightkurve as lk
 import configparser
+import pickle
 
 class StellarRadioAlg:
 
@@ -21,32 +22,21 @@ class StellarRadioAlg:
         self.phase0 = float(parser.get('MATH','phase0'))
         self.iters = int(parser.get('MATH','iters'))
         self.period = float(parser.get('FIGS','period'))
+        self.pickle_file_prefix = str(parser.get('FIGS','pickle_file_prefix'))
 
-        # self.alphap = parser.get('FIGS','alphap')
-        # self.datac = parser.get('FIGS','datac')
-        # self.resultc = parser.get('FIGS','resultc')
-        # self.guidingc = parser.get('FIGS','guidingc')
-        # self.axisfsize = parser.get('FIGS','axisfsize')
-        # self.figsizerect = parser.get('FIGS','figsizerect')
-        # self.figsizesq = parser.get('FIGS','figsizesq')
-        # self.ylim = parser.get('FIGS','ylim')
-        # self.xlim = parser.get('FIGS','xlim')
+        if self.instrument == 'kepler':
+            self.ins_prefix = 'kic'
+        elif self.instrument == 'tess':
+            self.ins_prefix = 'tic'
 
     def freq_finder(self):
         """Finds frequency based off of LombScargle peaks.
 
         Returns:
             float: Frequency estimate that is improved upon in optimization step.
-        """
-        time, flux, flerr, quarter = self.get_lc_data()
-        sampling_freq = 1./np.nanmedian(time[1:]-time[:-1])
+        """            
 
-        plt.figure()
-        plt.title('{} {} PDCSAP Flux Lightcurve'.format(self.instrument,self.id))
-        plt.scatter(time,flux,c=quarter,marker='.',s=5,alpha=.7)
-        plt.ylabel('Flux (arbitrary units)')
-        plt.xlabel('Barycentric Julian Date Plus Offset (d)')
-        plt.savefig('./stellar_radio_lightcurve_{}_{}.pdf'.format(self.instrument,str(self.id)))
+        time, flux, flerr, quarter = self.get_lc_data()
 
         for item in (time,flux,flerr,quarter):
             if not np.all(np.isfinite(item)):
@@ -61,37 +51,15 @@ class StellarRadioAlg:
             if que > 0:
                 new_q.append(que)
                 q_idx.append(i)
-        # print(q_idx,new_q)
         firsthalf_max = list(y).index(max(y[q_idx[0]:-1]))
         #firsthalf_max = list(y).index(max(y[1000:int(len(y)/2)])) #this needs to be altered
 
         ##switch this to argmax this is ugly
 
         f0_guess = q[firsthalf_max]
-        plt.figure()
-        plt.title('{} {} LombScargle for Frequency Guess'.format(self.instrument,self.id))
-        plt.plot(q,y,c='purple',alpha=.5)
-        plt.axvline(sampling_freq,c='black',alpha=.25)
-        plt.axvline(f0_guess,alpha=.5,color='green')
-        plt.savefig('./stellar_radio_frequency_guess_{}_{}'.format(self.instrument,str(self.id)))
-
         print("Frequency guess:",f0_guess)
-        ##hacking##
-        t0 = 1/f0_guess
-        folded_time = time % t0
-        means,bin_edges,_ = bs(folded_time,flux,bins=100)
-        bin_centers = .5*(bin_edges[1:]+bin_edges[:-1])
 
-        plt.figure()
-        plt.title('{} {} Folded Flux Lightcurve'.format(self.instrument,self.id))
-        plt.scatter(folded_time,flux,c=quarter,marker='.',s=5,alpha=.03)
-        plt.scatter(folded_time+t0,flux,c=quarter,marker='.',s=5,alpha=.03)
-        plt.plot(bin_centers,means,'ko')
-        plt.ylabel('Flux (arbitrary units)')
-        plt.xlabel('Modded Time (d)')
-        plt.savefig('./stellar_radio_lightcurve_{}_{}_folded.pdf'.format(self.instrument,str(self.id)))
-
-        return f0_guess
+        return f0_guess,q,y
 
     def get_lc_data(self):
         """Gets light curve data using Lightkurve.
@@ -223,67 +191,45 @@ class StellarRadioAlg:
             
         return remf, immf, sremf, simmf,output
 
-    def lombscargle_periodogram(self,time,simmf):
-        """Sets up plot for final LombScargle periodogram.
+    # def peak_finder(self, q, y):
+    #     """Finds peaks in final LombScargle periodogram, theoretically corresponding to the 
+    #     orbital period(s) (in days) of companion(s) to object of interest.
 
-        Args:
-            time (np.ndarray): [description]
-            simmf (np.ndarray): Optimized Gaussian-filtered immf.
+    #     Args:
 
-        """
-        q,y = LombScargle(time,simmf).autopower()
-        plt.plot(1./q,y,c='black',alpha=.75)
-        plt.xlabel("Period (days)")
-        plt.ylabel("LombScargle")
-        plt.xlim(1,100)
-        plt.grid()
-        plt.loglog()
-        #p1 = self.peak_finder(q,y)
-        plt.axvline(self.period,c='mediumslateblue',alpha=.6,label="expected companion orbital period (literature): {}".format(self.period),zorder=-10)
-        # plt.axvline(self.period*2,c='mediumslateblue',alpha=.6,label="expected companion orbital period (literature): {}".format(self.period*2))
-        # plt.axvline(self.period*3,c='mediumslateblue',alpha=.6,label="expected companion orbital period (literature): {}".format(self.period*3))
-        #plt.axvline(p1,c='limegreen',label="expected companion orbital period (us): {}".format(p1))
-        # plt.axvline(372.5,c='r',alpha=.5,label="kepler orbital period")
+    #     Returns:
+    #         np.float: Highest peak in periodogram, most likely orbital period
+    #     """
+    #     good_indeces = []
+    #     new_x = []
+    #     q = 1./q
+    #     for no,i in enumerate(q):
+    #         if i >= 1 and i <= 20: #between 1 and 20 day periods for now?
+    #             new_x.append(i)
+    #             good_indeces.append(no)
+    #     # new_x = q[good_indeces]
+    #     new_y = y[good_indeces]
+    #     peak_ys = fp(new_y)[0]
+    #     for i in peak_ys:
+    #         print(new_x[i],new_y[i])
+    #     peak_y_idx = np.argmax(new_y[peak_ys])
+    #     peak_x = new_x[peak_y_idx]
+    #     peak_y = new_y[peak_y_idx]
 
-    def peak_finder(self, q, y):
-        """Finds peaks in final LombScargle periodogram, theoretically corresponding to the 
-        orbital period(s) (in days) of companion(s) to object of interest.
+    #     1. ignore any xs less than 1 // 2. cut off the appropriate ys // 3. find peak of ys // 4. find x that matches that y 
 
-        Args:
+    #     peak_indeces = np.array(fp(new_y)[0])
+    #     peak_xs = []
 
-        Returns:
-            np.float: Highest peak in periodogram, most likely orbital period
-        """
-        good_indeces = []
-        new_x = []
-        q = 1./q
-        for no,i in enumerate(q):
-            if i >= 1 and i <= 20: #between 1 and 20 day periods for now?
-                new_x.append(i)
-                good_indeces.append(no)
-        # new_x = q[good_indeces]
-        new_y = y[good_indeces]
-        peak_ys = fp(new_y)[0]
-        for i in peak_ys:
-            print(new_x[i],new_y[i])
-        peak_y_idx = np.argmax(new_y[peak_ys])
-        peak_x = new_x[peak_y_idx]
-        peak_y = new_y[peak_y_idx]
+    #     for i in peak_indeces:
+    #         peak_xs.append(new_q[i])
 
-        #1. ignore any xs less than 1 // 2. cut off the appropriate ys // 3. find peak of ys // 4. find x that matches that y 
+    #     peak_ys = []
+    #     for i in peak_indeces:
+    #         peak_ys.append(new_y[i])
+    #     peak_ys = sorted(peak_ys)
 
-        # peak_indeces = np.array(fp(new_y)[0])
-        # peak_xs = []
-
-        # for i in peak_indeces:
-        #     peak_xs.append(new_q[i])
-
-        # peak_ys = []
-        # for i in peak_indeces:
-        #     peak_ys.append(new_y[i])
-        # peak_ys = sorted(peak_ys)
-
-        return peak_x
+    #     return peak_x
 
     def run_all_steps(self):
         """Runs algorithm steps in order, which ends in plotting a LombScargle
@@ -291,14 +237,13 @@ class StellarRadioAlg:
         """
         time,flux,flerr,quarter = self.get_lc_data()
 
-        f0 = self.freq_finder()
+        f0,q,y = self.freq_finder()
 
         remf, immf, sremf, simmf, oput = self.optimization(time,flux,f0)
 
-        plt.figure()
-        plt.title('lombscargle periodogram of {}'.format(self.id))
-        self.lombscargle_periodogram(time,simmf)
-        # plt.xlim(2,4)
-        # plt.ylim(1e-8, 1e-1)
-        plt.legend()
-        plt.savefig('./stellar_radio_plot_{}_{}.pdf'.format(self.instrument,str(self.id)))
+        plot_vals = {'flux':flux,'time':time,'quarter':quarter,'f0':f0,'q':q,'y':y,'simmf':simmf}
+
+        with open(self.pickle_file_prefix+'pickle_{}_{}.pkl'.format(self.ins_prefix,self.id),'wb') as file:
+            pickle.dump(plot_vals,file)
+            file.close()
+        print ('done')
