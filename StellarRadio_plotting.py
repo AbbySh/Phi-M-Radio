@@ -66,7 +66,7 @@ class StellarRadioAlg_Plotting:
             f0 ():
         """
         plt.figure()
-        plt.title('{} {} PDCSAP Flux Lightcurve'.format(self.ins_prefix,self.id))
+        plt.title('Lightcurve: {}{} PDCSAP Flux'.format(self.ins_prefix,self.id))
         plt.scatter(time,flux,c=quarter,marker='.',s=5,alpha=.7)
         plt.ylabel('Flux (arbitrary units)')
         plt.xlabel('Barycentric Julian Date Plus Offset (d)')
@@ -80,7 +80,7 @@ class StellarRadioAlg_Plotting:
         bin_centers = .5*(bin_edges[1:]+bin_edges[:-1])
 
         plt.figure()
-        plt.title('{} {} Folded Flux Lightcurve'.format(self.ins_prefix,self.id))
+        plt.title('Lightcurve: {}{} Folded Flux'.format(self.ins_prefix,self.id))
         plt.scatter(folded_time,flux,c=quarter,marker='.',s=5,alpha=.03)
         plt.scatter(folded_time+t0,flux,c=quarter,marker='.',s=5,alpha=.03)
         plt.plot(bin_centers,means,'ko')
@@ -102,7 +102,7 @@ class StellarRadioAlg_Plotting:
         """
         sampling_freq = 1./np.nanmedian(time[1:]-time[:-1])
         plt.figure()
-        plt.title('{} {} LombScargle for Frequency Guess'.format(self.ins_prefix,self.id))
+        plt.title('LombScargle Periodogram: {}{} Frequency Guess'.format(self.ins_prefix,self.id))
         plt.plot(q,y,c='purple',alpha=.5)
         plt.axvline(sampling_freq,c='black',alpha=.25)
         plt.axvline(f0,alpha=.5,color='green')
@@ -121,12 +121,12 @@ class StellarRadioAlg_Plotting:
         """
         q,y = LombScargle(time,simmf).autopower()
         plt.plot(1./q,y,c='black',alpha=.75)
+        plt.title('LombScargle Periodogram: {}{} Period vs Gaussian-filtered Im(mixer * flux)'.format(self.ins_prefix,self.id))
         plt.xlabel("Period (days)")
-        plt.ylabel('Measurement Values (arbitrary units)')
+        plt.ylabel('"Simmf" (arbitrary units)')
         plt.xlim(1,100)
         plt.grid()
         plt.loglog()
-        #p1 = self.peak_finder(q,y)
         plt.axvline(self.period,c='mediumslateblue',alpha=.6,label="expected companion orbital period (literature): {}".format(self.period),zorder=-10)
         plt.legend()
         plt.savefig('./LS_periodograms/stellar_radio_plot_{}_{}.pdf'.format(self.ins_prefix,str(self.id)))
