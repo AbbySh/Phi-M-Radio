@@ -1,11 +1,7 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import minimize
 from astropy.timeseries import LombScargle
 import scipy.ndimage
-from scipy.signal import find_peaks as fp
-from scipy.fftpack import fft,ifft,fftfreq
-from scipy.stats import binned_statistic as bs
 import lightkurve as lk
 import configparser
 import pickle
@@ -22,41 +18,28 @@ class StellarRadioAlg:
         self.phase0 = float(parser.get('MATH','phase0'))
         self.iters = int(parser.get('MATH','iters'))
         self.period = float(parser.get('FIGS','period'))
-        self.pickle_file_prefix = str(parser.get('FIGS','pickle_file_prefix'))
 
         if self.instrument == 'kepler':
             self.ins_prefix = 'kic'
         elif self.instrument == 'tess':
             self.ins_prefix = 'tic'
 
-    def freq_finder(self):
+    def freq_finder(self,time,flux,qmin=0.,qmax=np.Inf):
         """Finds frequency based off of LombScargle peaks.
+
+        Args:
+            time (np.ndarray): Time data.
+            flux (np.ndarray): Flux data.
+            qmin (float): Minimum for frequency choice.
+            qmax (float): Maximum for frequency choice.
 
         Returns:
             float: Frequency estimate that is improved upon in optimization step.
+            np.ndarray: Frequency (x-) component of LombScargle.
+            np.ndarray: Power (y-) component of LombScargle.
         """            
-
-        time, flux, flerr, quarter = self.get_lc_data()
-
-        for item in (time,flux,flerr,quarter):
-            if not np.all(np.isfinite(item)):
-                bad = np.logical_not(np.isfinite(item))
-                print(np.sum(bad))
-        I = (quarter < 100)
-        q,y = LombScargle(time[I],flux[I]).autopower()
-        ##testing##
-        new_q = []
-        q_idx = []
-        for i,que in enumerate(q):
-            if que > 0:
-                new_q.append(que)
-                q_idx.append(i)
-        firsthalf_max = list(y).index(max(y[q_idx[0]:-1]))
-        #firsthalf_max = list(y).index(max(y[1000:int(len(y)/2)])) #this needs to be altered
-
-        ##switch this to argmax this is ugly
-
-        f0_guess = q[firsthalf_max]
+        q,y = LombScargle(time,flux).autopower()
+        f0_guess = q[np.argmax(y * (q > qmin) * (q < qmax))]
         print("Frequency guess:",f0_guess)
 
         return f0_guess,q,y
@@ -67,8 +50,7 @@ class StellarRadioAlg:
         Returns:
             np.ndarray: Time data.
             np.ndarray: Flux data.
-            np.ndarray: Flux-error data.
-            np.ndarray: Number of light curves.
+            np.ndarray: Number of light curve sectors.
         """
         if type(self.id) != str:
             self.id = str(self.id)
@@ -83,7 +65,7 @@ class StellarRadioAlg:
         else:
             raise TypeError('Only Kepler and TESS are supported instruments')
             
-        time, flux, flerr, quarter = np.array([]), np.array([]), np.array([]), np.array([])
+        time, flux, quarter = np.array([]), np.array([]), np.array([])
         for q,lc in enumerate(lc_files):
 
             time_table = lc['time']
@@ -97,24 +79,24 @@ class StellarRadioAlg:
             
             median_flux = np.nanmedian(this_flux)
             this_flux = this_flux[good] / median_flux
-            this_flerr = lc['pdcsap_flux_err'][good] / median_flux
+            # this_flerr = lc['pdcsap_flux_err'][good] / median_flux
             this_q = np.zeros_like(this_time) + q
             
             bad = np.logical_not(np.isfinite(this_flux))
             this_flux[bad] = 1.
-            this_flerr[bad] = 1000.
+            # this_flerr[bad] = 1000.
             time = np.concatenate((time,this_time))
             flux = np.array(np.concatenate((flux,this_flux)))
-            flerr = np.array(np.concatenate((flerr,this_flerr)))
+            # flerr = np.array(np.concatenate((flerr,this_flerr)))
             quarter = np.concatenate((quarter, this_q))
         quarter = np.round(quarter).astype(int)
 
         flux=flux-1.
 
-        return time,flux,flerr,quarter
+        return time,flux,quarter
 
     def mix(self,time,flux,f0):
-        """Mix flux. ? Bad description
+        """Carrier wave for flux. ? Check discription.
 
         Args:
             time (np.ndarray): Time data.
@@ -134,7 +116,7 @@ class StellarRadioAlg:
         sremf = scipy.ndimage.filters.gaussian_filter1d(remf, 50)
         simmf = scipy.ndimage.filters.gaussian_filter1d(immf, 50)
         print('mix:',self.amp0,f0,self.phase0,np.median(flux),np.min(flux),np.mean(flux),np.mean(mf))
-        return remf,immf,sremf,simmf
+        return sremf,simmf
 
     def objective(self,f,time,flux,amp,phase):
         """Gets variance of imaginary component of the mixer multiplied by flux.
@@ -162,88 +144,59 @@ class StellarRadioAlg:
             f0 (float): Frequency guess.
 
         Returns:
-            np.ndarray: Optimized real components of mixer multiplied by flux.
-            np.ndarray: Optimized imaginary components of mixer multiplied by flux.
-            np.ndarray: Optimized Gaussian-filtered remf.
             np.ndarray: Optimized Gaussian-filtered immf.
-            output (?): Output of Nelder-Mead minimization.
         """
         for i in range(self.iters):
             print("Iteration", i)
             
-            remf,immf,sremf,simmf = self.mix(time,flux,f0)
+            sremf,simmf = self.mix(time,flux,f0)
 
             new_amp = self.amp0 / np.sqrt(np.mean(sremf**2 + simmf**2))
             print(np.mean(sremf**2 + simmf**2),np.mean(sremf**2),np.mean(simmf**2))
             print("Amps:", self.amp0, new_amp)
             self.amp0 = new_amp
             
-            remf,immf,sremf,simmf = self.mix(time,flux,f0)
+            sremf,simmf = self.mix(time,flux,f0)
             new_phase = self.phase0 + np.arctan2(np.mean(simmf), np.mean(sremf))
             print("Phases:", self.phase0, new_phase)
             self.phase0 = new_phase
         
-            remf, immf, sremf, simmf = self.mix(time,flux,f0)
+            sremf, simmf = self.mix(time,flux,f0)
 
             output=minimize(self.objective,f0,args=(time,flux,self.amp0,self.phase0),method="Nelder-Mead")
             print("Frequencies:", f0, np.mean((output.final_simplex[0][0],output.final_simplex[0][1])))
             f0=np.mean((output.final_simplex[0][0],output.final_simplex[0][1]))
             
-        return remf, immf, sremf, simmf,output
+        return simmf
 
-    # def peak_finder(self, q, y):
-    #     """Finds peaks in final LombScargle periodogram, theoretically corresponding to the 
-    #     orbital period(s) (in days) of companion(s) to object of interest.
-
-    #     Args:
-
-    #     Returns:
-    #         np.float: Highest peak in periodogram, most likely orbital period
-    #     """
-    #     good_indeces = []
-    #     new_x = []
-    #     q = 1./q
-    #     for no,i in enumerate(q):
-    #         if i >= 1 and i <= 20: #between 1 and 20 day periods for now?
-    #             new_x.append(i)
-    #             good_indeces.append(no)
-    #     # new_x = q[good_indeces]
-    #     new_y = y[good_indeces]
-    #     peak_ys = fp(new_y)[0]
-    #     for i in peak_ys:
-    #         print(new_x[i],new_y[i])
-    #     peak_y_idx = np.argmax(new_y[peak_ys])
-    #     peak_x = new_x[peak_y_idx]
-    #     peak_y = new_y[peak_y_idx]
-
-    #     1. ignore any xs less than 1 // 2. cut off the appropriate ys // 3. find peak of ys // 4. find x that matches that y 
-
-    #     peak_indeces = np.array(fp(new_y)[0])
-    #     peak_xs = []
-
-    #     for i in peak_indeces:
-    #         peak_xs.append(new_q[i])
-
-    #     peak_ys = []
-    #     for i in peak_indeces:
-    #         peak_ys.append(new_y[i])
-    #     peak_ys = sorted(peak_ys)
-
-    #     return peak_x
-
-    def run_all_steps(self):
+    def run_all_steps(self, injection_flux=None,qmin=0,qmax=np.Inf): # flux hack! Instead this should take injection parameters.
         """Runs algorithm steps in order, which ends in plotting a LombScargle
         periodogram of time vs simmf.
+
+        Args:
+            injection_flux (np.ndarray): Flux to be injected into stellar object flux. Used for testing. Defaults to None.
+            qmin (float): Minimum boundary for frequency guess. Defaults to 0.
+            qmax (float): Maximum boundary for frequency guess. Defaults to infinity.
+
+        Returns:
+            np.ndarray: Time data.
+            np.ndarray: Flux data.
+            np.ndarray: Number of light curve sectors.
+            np.ndarray: Optimized Gaussian-filtered immf.
         """
-        time,flux,flerr,quarter = self.get_lc_data()
+        time,flux,quarter = self.get_lc_data()
 
-        f0,q,y = self.freq_finder()
+        if injection_flux is not None:
+            flux = injection_flux
 
-        remf, immf, sremf, simmf, oput = self.optimization(time,flux,f0)
+        f0,q,y = self.freq_finder(time,flux,qmin=qmin,qmax=qmax)
+
+        simmf = self.optimization(time,flux,f0)
 
         plot_vals = {'flux':flux,'time':time,'quarter':quarter,'f0':f0,'q':q,'y':y,'simmf':simmf}
 
-        with open(self.pickle_file_prefix+'pickle_{}_{}.pkl'.format(self.ins_prefix,self.id),'wb') as file:
+        with open('./pickle_files/pickle_{}_{}.pkl'.format(self.ins_prefix,self.id),'wb') as file:
             pickle.dump(plot_vals,file)
             file.close()
         print ('done')
+        return time,flux,quarter,simmf

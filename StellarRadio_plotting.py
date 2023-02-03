@@ -26,6 +26,15 @@ class StellarRadioAlg_Plotting:
     def load_values(self):
         """
         Loads values from pickle file, or, performs stellar radio algorithm if no pickle file for stellar object exists. 
+
+        Returns:
+            np.ndarray: Time data.
+            np.ndarray: Flux data.
+            np.ndarray: Number of light curve sectors.
+            float: Guess for pulsation frequency.
+            np.ndarray: Frequency (x-) component of LombScargle.
+            np.ndarray: Power (y-) component of LombScargle.
+            np.ndarray: Optimized Gaussian-filtered immf.
         """
         try:
             with open('./pickle_files/pickle_{}_{}.pkl'.format(self.ins_prefix,self.id),'rb') as file:
@@ -62,8 +71,8 @@ class StellarRadioAlg_Plotting:
         Args:
             time (np.ndarray): Time data
             flux (np.ndarray): Flux data
-            quarter ():
-            f0 ():
+            quarter (np.ndarray): Number of light curve sectors.
+            f0 (float): Guess for pulsation frequency.
         """
         plt.figure()
         plt.title('Lightcurve: {}{} PDCSAP Flux'.format(self.ins_prefix,self.id))
@@ -95,10 +104,10 @@ class StellarRadioAlg_Plotting:
         Plots frequency guess plot (LombScargle).
 
         Args:
-            time (np.ndarray): Time data
-            q ():
-            y ():
-            f0 ():
+            time (np.ndarray): Time data.
+            q (np.ndarray): Frequency (x-) component of LombScargle.
+            y (np.ndarray): Power (y-) component of LombScargle.
+            f0 (float): Guess for pulsation frequency.
         """
         sampling_freq = 1./np.nanmedian(time[1:]-time[:-1])
         plt.figure()
