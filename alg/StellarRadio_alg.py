@@ -84,15 +84,12 @@ class StellarRadioAlg:
             
             median_flux = np.nanmedian(this_flux)
             this_flux = this_flux[good] / median_flux
-            # this_flerr = lc['pdcsap_flux_err'][good] / median_flux
             this_q = np.zeros_like(this_time) + q
             
             bad = np.logical_not(np.isfinite(this_flux))
             this_flux[bad] = 1.
-            # this_flerr[bad] = 1000.
             time = np.concatenate((time,this_time))
             flux = np.array(np.concatenate((flux,this_flux)))
-            # flerr = np.array(np.concatenate((flerr,this_flerr)))
             quarter = np.concatenate((quarter, this_q))
 
             ###mask hack###
@@ -114,10 +111,11 @@ class StellarRadioAlg:
         """
         Masks out eclipses from light curve.
         """
+        pass
 
 
     def mix(self,time,flux,f0):
-        """Carrier wave for flux. ? Check discription.
+        """Out-of-phase carrier wave multiplication with flux data.
 
         Args:
             time (np.ndarray): Time data.
@@ -143,7 +141,7 @@ class StellarRadioAlg:
         """Gets variance of imaginary component of the mixer multiplied by flux.
 
         Args:
-            f (float): Frequency
+            f (float): Frequency value.
             time (np.ndarray): Time data.
             flux (np.ndarray): Flux data.
             amp (float): Amplitude value.
