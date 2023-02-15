@@ -148,7 +148,6 @@ class StellarRadioAlg_Plotting:
         Plots the plots.
         """
         time,flux,quarter,f0,q,y,simmf = self.load_values()
-        print(time,flux,quarter,f0,q,y,simmf)
         if self.lightcurve_toggle == True:
             self.lightcurve_plot(time,flux,quarter,f0)
 
