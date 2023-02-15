@@ -76,7 +76,7 @@ class StellarRadioAlg_Plotting:
         """
         plt.figure()
         plt.title('Lightcurve: {}{} PDCSAP Flux'.format(self.ins_prefix,self.id))
-        plt.scatter(time,flux,c=quarter,marker='.',s=5,alpha=.7)
+        plt.scatter(time,flux,marker='.',s=5,alpha=.7)
         plt.ylabel('Flux (arbitrary units)')
         plt.xlabel('Barycentric Julian Date Plus Offset (d)')
         plt.savefig('./lightcurves/stellar_radio_lightcurve_{}_{}.pdf'.format(self.ins_prefix,str(self.id)))
@@ -90,8 +90,8 @@ class StellarRadioAlg_Plotting:
 
         plt.figure()
         plt.title('Lightcurve: {}{} Folded Flux'.format(self.ins_prefix,self.id))
-        plt.scatter(folded_time,flux,c=quarter,marker='.',s=5,alpha=.03)
-        plt.scatter(folded_time+t0,flux,c=quarter,marker='.',s=5,alpha=.03)
+        plt.scatter(folded_time,flux,marker='.',s=5,alpha=.03)
+        plt.scatter(folded_time+t0,flux,marker='.',s=5,alpha=.03)
         plt.plot(bin_centers,means,'ko')
         plt.ylabel('Flux (arbitrary units)')
         plt.xlabel('Modded Time (d)')
@@ -118,7 +118,7 @@ class StellarRadioAlg_Plotting:
         plt.savefig('./frequency_guess_plots/stellar_radio_frequency_guess_{}_{}.pdf'.format(self.ins_prefix,str(self.id)))
         plt.xlabel('Frequency (1/d)')
         plt.ylabel('Measurement Values (arbitrary units)')
-        plt.xlim(0,20)
+        #plt.xlim(0,20)
         plt.show()
         plt.close()
 
@@ -148,7 +148,7 @@ class StellarRadioAlg_Plotting:
         Plots the plots.
         """
         time,flux,quarter,f0,q,y,simmf = self.load_values()
-
+        print(time,flux,quarter,f0,q,y,simmf)
         if self.lightcurve_toggle == True:
             self.lightcurve_plot(time,flux,quarter,f0)
 
