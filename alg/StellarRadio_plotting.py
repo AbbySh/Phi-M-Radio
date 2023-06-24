@@ -1,22 +1,13 @@
 import matplotlib.pyplot as plt
-import configparser
-from astropy.timeseries import LombScargle
 import pickle
 import numpy as np
-from scipy.stats import binned_statistic as bs
 from alg.StellarRadio_alg import StellarRadioAlg
 
 class StellarRadioAlg_Plotting:
 
-    def __init__(self):
-        parser = configparser.ConfigParser()
-        parser.read('stellar.cfg')
-        self.freq_toggle = bool(parser.get('FIGS','freq_plot_toggle'))
-        self.lombscargle_toggle = bool(parser.get('FIGS','lombscargle_toggle'))
-        self.lightcurve_toggle = bool(parser.get('FIGS','lightcurve_toggle'))
-        self.instrument = str(parser.get('STARQUALS','instrument'))
-        self.id = int(parser.get('STARQUALS','id'))
-        self.period = float(parser.get('FIGS','period'))
+    def __init__(self,instrument,id):
+        self.instrument = instrument
+        self.id = id
 
         if self.instrument == 'kepler':
             self.ins_prefix = 'kic'
@@ -38,70 +29,71 @@ class StellarRadioAlg_Plotting:
         """
         try:
             with open('./pickle_files/pickle_{}_{}.pkl'.format(self.ins_prefix,self.id),'rb') as file:
-                print('pickle file exists for object')
+                print('pickle file exists for object, plotting now')
                 vals = pickle.load(file)
                 time = vals['time']
                 flux = vals['flux']
-                quarter = vals['quarter']
-                f0 = vals['f0']
-                q = vals['q']
-                y = vals['y']
-                simmf = vals['simmf']
+                modes = vals['modes']
+                qs = vals['qs']
+                ys = vals['ys']
+                simmfs = vals['simmfs']
+                q_modes = vals['q_modes']
+                y_modes = vals['y_modes']
             
+
         except:
-            print('pickle file does not exist: running necessary algorithmic steps')
+            print('pickle file does not exist: running phi-m script then will plot')
             alg_init = StellarRadioAlg()
             alg_init.run_all_steps()
             with open('./pickle_files/pickle_{}_{}.pkl'.format(self.ins_prefix,self.id),'rb') as file:
                 vals = pickle.load(file)
                 time = vals['time']
                 flux = vals['flux']
-                quarter = vals['quarter']
-                f0 = vals['f0']
-                q = vals['q']
-                y = vals['y']
-                simmf = vals['simmf']
+                modes = vals['modes']
+                qs = vals['qs']
+                ys = vals['ys']
+                simmfs = vals['simmfs']
+                q_modes = vals['q_modes']
+                y_modes = vals['y_modes']
 
-        return time,flux,quarter,f0,q,y,simmf
+        return time,flux,modes,qs,ys,simmfs
 
-    def lightcurve_plot(self,time,flux,quarter,f0):
+    def lightcurve_plot(self,time,flux):
         """
         Plots lightcurve.
 
         Args:
-            time (np.ndarray): Time data
-            flux (np.ndarray): Flux data
-            quarter (np.ndarray): Number of light curve sectors.
-            f0 (float): Guess for pulsation frequency.
+            time (np.ndarray): Time data.
+            flux (np.ndarray): Flux data.
         """
         plt.figure()
-        plt.title('Lightcurve: {}{} PDCSAP Flux'.format(self.ins_prefix,self.id))
-        plt.scatter(time,flux,marker='.',s=5,alpha=.7)
+        plt.title('{}{} Lightcurve'.format(self.ins_prefix,self.id))
+        plt.scatter(time,flux,marker='.',s=5,alpha=.5)
+        plt.plot(time,flux,alpha=.2)
         plt.ylabel('Flux (arbitrary units)')
         plt.xlabel('Barycentric Julian Date Plus Offset (d)')
         plt.savefig('./lightcurves/stellar_radio_lightcurve_{}_{}.pdf'.format(self.ins_prefix,str(self.id)))
         plt.show()
-        plt.close()
 
-        t0 = 1/f0
-        folded_time = time % t0
-        means,bin_edges,_ = bs(folded_time,flux,bins=100)
-        bin_centers = .5*(bin_edges[1:]+bin_edges[:-1])
+    # def folded_flux_plot(self,time,flux,f0):
+        # t0 = 1/f0
+        # folded_time = time % t0
+        # means,bin_edges,_ = bs(folded_time,flux,bins=100)
+        # bin_centers = .5*(bin_edges[1:]+bin_edges[:-1])
 
-        plt.figure()
-        plt.title('Lightcurve: {}{} Folded Flux'.format(self.ins_prefix,self.id))
-        plt.scatter(folded_time,flux,marker='.',s=5,alpha=.03)
-        plt.scatter(folded_time+t0,flux,marker='.',s=5,alpha=.03)
-        plt.plot(bin_centers,means,'ko')
-        plt.ylabel('Flux (arbitrary units)')
-        plt.xlabel('Modded Time (d)')
-        plt.savefig('./lightcurves/stellar_radio_lightcurve_{}_{}_folded.pdf'.format(self.ins_prefix,str(self.id)))
-        plt.show()
-        plt.close()
+        # plt.figure()
+        # plt.title('Lightcurve: {}{} Folded Flux'.format(self.ins_prefix,self.id))
+        # plt.scatter(folded_time,flux,marker='.',s=5,alpha=.03)
+        # plt.scatter(folded_time+t0,flux,marker='.',s=5,alpha=.03)
+        # plt.plot(bin_centers,means,'ko')
+        # plt.ylabel('Flux (arbitrary units)')
+        # plt.xlabel('Modded Time (d)')
+        # plt.savefig('./lightcurves/stellar_radio_lightcurve_{}_{}_folded.pdf'.format(self.ins_prefix,str(self.id)))
+        # plt.show()
 
-    def freq_guess_plot(self,time,q,y,f0):
+    def modes_plot(self,time,q_modes,y_modes):
         """
-        Plots frequency guess plot (LombScargle).
+        Plots modes up to nyquist frequency (LombScargle).
 
         Args:
             time (np.ndarray): Time data.
@@ -110,49 +102,61 @@ class StellarRadioAlg_Plotting:
             f0 (float): Guess for pulsation frequency.
         """
         sampling_freq = 1./np.nanmedian(time[1:]-time[:-1])
+        nyquist = .5*sampling_freq
         plt.figure()
-        plt.title('LombScargle Periodogram: {}{} Frequency Guess'.format(self.ins_prefix,self.id))
-        plt.plot(q,y,c='purple',alpha=.5)
+        plt.title('{}{} Modes'.format(self.ins_prefix,self.id))
+        plt.plot(q_modes,y_modes,c='purple',alpha=.5)
         plt.axvline(sampling_freq,c='black',alpha=.25)
-        plt.axvline(f0,alpha=.5,color='green')
-        plt.savefig('./frequency_guess_plots/stellar_radio_frequency_guess_{}_{}.pdf'.format(self.ins_prefix,str(self.id)))
+        # plt.axvline(f0,alpha=.5,color='green')
+        plt.xlim(0,nyquist)
         plt.xlabel('Frequency (1/d)')
-        plt.ylabel('Measurement Values (arbitrary units)')
-        #plt.xlim(0,20)
+        plt.ylabel('Amplitude (? units)')
+        plt.savefig('./frequency_guess_plots/mode_guess_{}_{}.pdf'.format(self.ins_prefix,self.id))
         plt.show()
-        plt.close()
 
-    def final_lombscargle_plot(self,time,simmf):
+    # def phase_plot(self):
+
+
+    def final_lombscargle_plot(self,qs,ys,modes):
         """Sets up plot for final LombScargle periodogram.
 
         Args:
-            time (np.ndarray): Time data
-            simmf (np.ndarray): Optimized Gaussian-filtered immf
+            qs(np.ndarray):
+            ys(np.ndarray): 
+            modes(np.ndarray): Array of mode values.
         """
-        q,y = LombScargle(time,simmf).autopower()
-        plt.plot(1./q,y,c='black',alpha=.75)
-        plt.title('LombScargle Periodogram: {}{} Period vs Gaussian-filtered Im(mixer * flux)'.format(self.ins_prefix,self.id))
+        plt.figure()
+        for no,(q,y) in enumerate(zip(qs,ys)):
+            plt.plot(1./q,y,alpha=.3,marker='.',label='{}'.format(modes[no])) #this may be a bug, test
+        plt.title('{}{} Periodogram of Period vs Gaussian-filtered Im(mixer * flux)'.format(self.ins_prefix,self.id))
         plt.xlabel("Period (days)")
-        plt.ylabel('"Simmf" (arbitrary units)')
-        plt.xlim(1,100)
-        plt.grid()
-        plt.loglog()
-        plt.axvline(self.period,c='mediumslateblue',alpha=.6,label="expected companion orbital period (literature): {}".format(self.period),zorder=-10)
-        plt.legend()
-        plt.savefig('./LS_periodograms/stellar_radio_plot_{}_{}.pdf'.format(self.ins_prefix,str(self.id)))
+        plt.ylabel('Amplitude (? units)')
+        plt.xscale('log')
+        plt.xlim(1)
+        plt.ylim(0)
+        # if expect_period == True:
+        #     plt.axvline(self.period,c='mediumslateblue',alpha=.6,label="Expected Companion Orbital Period (lit): {}".format(self.period),zorder=-10)
+        plt.legend(title = 'Modes')
+        plt.savefig('./LS_periodograms/periodogram_{}_{}.pdf'.format(self.ins_prefix,str(self.id)))
         plt.show()
-        plt.close()
 
-    def do_plots(self):
+    def do_plots(self,lightcurve_plt=False,modes_plt=False,periodogram_plt=True):
         """
         Plots the plots.
+
+        Args:
+            lightcurve(bool): Defaults to False.
+            modes(bool): Defaults to False.
+            periodogram(bool): Defaults to True.
         """
-        time,flux,quarter,f0,q,y,simmf = self.load_values()
-        if self.lightcurve_toggle == True:
-            self.lightcurve_plot(time,flux,quarter,f0)
+        flux,time,modes,simmfs,qs,ys,q_modes,y_modes = self.load_values()
+        print(qs,ys,modes)
 
-        if self.freq_toggle == True:
-            self.freq_guess_plot(time,q,y,f0)
+        if lightcurve_plt == True:
+            self.lightcurve_plot(time,flux)
 
-        if self.lombscargle_toggle == True:
-            self.final_lombscargle_plot(time,simmf)
+        if modes_plt == True:
+            self.modes_plot(time,q_modes,y_modes)
+
+        if periodogram_plt == True:
+            self.final_lombscargle_plot(qs,ys,modes)
