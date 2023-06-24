@@ -1,9 +1,6 @@
 import numpy as np
 import lightkurve as lk
-import matplotlib.pyplot as plt
-import configparser
 from astropy.timeseries import LombScargle
-
 
 def get_lc_data(id,instrument,cadence):
     """Gets light curve data using Lightkurve.
