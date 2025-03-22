@@ -37,9 +37,9 @@ class phi_m_radio():
         return [refined_x]
 
 
-    def radio(ts,ys,mode_f):
+    def demodulate(ts,ys,mode_f):
         """
-        Performs flux * e^{2pi i f t} calculation.
+        Performs phase demodulation (flux * e^{2pi i f t} calculation).
 
         Arguments:
             ts (np.array): Array of times
