@@ -24,18 +24,17 @@ class phi_m_radio():
         q, y = LombScargle(ts, ys).autopower()
         pk_idx = np.argmax(y * (q > qmin) * (q < qmax))
         pk_x = q[pk_idx]
-        ys = y[pk_idx - 1 : pk_idx + 2] # this dies if pk_idx is at the array edge
-        delta = 0.5 * (q[pk_idx + 1] - q[pk_idx - 1])
 
-        assert np.shape(y) == (3,)
-        b = (y[2] - y[0]) / (2. * delta)
-        a = (y[0] - 2.0 * y[1] + y[2]) / (delta ** 2)
+        y_three = y[pk_idx - 1 : pk_idx + 2] # this dies if pk_idx is at the array edge
+        delta = 0.5 * (q[pk_idx + 1] - q[pk_idx - 1])
+        assert np.shape(y_three) == (3,)
+        b = (y_three[2] - y_three[0]) / (2. * delta)
+        a = (y_three[0] - 2.0 * y_three[1] + y_three[2]) / (delta ** 2)
         assert a<0
         assert (-delta) < (-b / a) < delta
         refined_x = pk_x - b / a
 
-        return [refined_x]
-
+        return refined_x
 
     def demodulate(ts,ys,mode_f):
         """
