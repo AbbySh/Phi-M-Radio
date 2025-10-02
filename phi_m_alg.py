@@ -47,9 +47,14 @@ class phi_m_radio():
         
         Returns:
             np.array: Array of complex numbers, flux multiplied by e^{2pi i f t}
+
+        Bugs:
+            For some reason, we needed to define this object 'bob' and then take the imag of it, rather
+                than put the .imag in the return! Send help!
         """
         qs = (ys - np.nanmean(ys)) * np.exp(1j * 2. * np.pi * mode_f * ts)
-        return (qs / np.nanmean(qs)).imag
+        bob = qs / np.nanmean(qs)
+        return bob.imag
 
     def listen(ts,qs,mode_f):
         """
