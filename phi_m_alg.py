@@ -48,8 +48,8 @@ class phi_m_radio():
         Returns:
             np.array: Array of complex numbers, flux multiplied by e^{2pi i f t}
         """
-        qs = (ys-np.nanmean(ys)) * np.exp(2.*np.pi*1j*mode_f*ts)
-        return qs/np.nanmean(qs)
+        qs = (ys - np.nanmean(ys)) * np.exp(1j * 2. * np.pi * mode_f * ts)
+        return (qs / np.nanmean(qs)).imag
 
     def listen(ts,qs,mode_f):
         """
@@ -66,5 +66,5 @@ class phi_m_radio():
         """
         delta_f = 1. / (max(ts) - min(ts))
         fs = np.arange(delta_f, mode_f, delta_f / 3.0)
-        ps = LombScargle(ts,qs).power(fs,normalization='psd')
+        ps = LombScargle(ts, qs).power(fs,normalization='psd')
         return fs, ps
